@@ -1,0 +1,822 @@
+{% extends "zato/index.html" %}
+
+{% block html_title %}
+
+    {% if transport == 'plain_http' %}
+        REST
+    {% else %}
+        SOAP
+    {% endif %}
+
+    {% if connection == 'channel' %}
+        endpoints
+    {% else %}
+        outgoing connections
+    {% endif %}
+
+{% endblock %}
+
+{% block "extra_css" %}
+    <link rel="stylesheet" type="text/css" href="/static/css/jquery.alerts.css">
+    <link rel="stylesheet" type="text/css" href="/static/css/multi-select.css">
+{% endblock %}
+
+{% block "extra_js" %}
+
+    {% comment %} jQuery {% endcomment %}
+    <script nonce="{{ CSP_NONCE }}" type="text/javascript" src="/static/jquery/jquery.tablesorter.min.js"></script>
+    <script nonce="{{ CSP_NONCE }}" type="text/javascript" src="/static/jquery/jquery.cookie.js"></script>
+    <script nonce="{{ CSP_NONCE }}" type="text/javascript" src="/static/jquery/jquery.alerts.min.js"></script>
+
+    <script nonce="{{ CSP_NONCE }}" type="text/javascript" src="/static/js/common.js"></script>
+    <script nonce="{{ CSP_NONCE }}" type="text/javascript" src="/static/js/http_soap/index.js"></script>
+
+
+    <script nonce="{{ CSP_NONCE }}">
+    $.fn.zato.data_table.get_columns = function() {
+        return [
+
+            // 1, 2
+            '_numbering',
+            '_selection',
+
+            // 3
+            'name',
+
+            // 4
+            '_is_active',
+
+            // 5
+            {% if connection == 'outgoing' %}
+                'host',
+            {% endif %}
+
+            // 6
+            'url_path',
+
+            // 7, 8
+            {% if connection == 'channel' %}
+                '_service',
+                '_cache',
+            {% endif %}
+
+            // 9, 9b
+            '_security',
+            '_security_groups',
+
+            // 10, 11
+            {% if transport == 'soap' %}
+                'soap_action',
+                'soap_version',
+            {% endif %}
+
+            // 12, 13
+            {% if connection == 'channel' %}
+                'service',
+                'content_encoding',
+            {% endif %}
+
+            // 14, 15, 16
+            'id',
+            'is_active',
+            'security',
+
+            // 17, 18, 19
+            'cache_id',
+            'cache_type',
+            'cache_expiry',
+
+            // 20
+            'data_format',
+
+            // 22, 23a, 23b, 23c
+            'timeout',
+            'validate_tls',
+            'match_slash',
+            'http_accept',
+
+            // 24, 25, 26, 27
+            {% if connection == 'outgoing' %}
+                'ping_method',
+                'pool_size',
+                'serialization_type',
+                'content_type',
+            {% endif %}
+
+            // 28, 29, 30, 30a
+            {% if connection == 'channel' %}
+                'merge_url_params_req',
+                'url_params_pri',
+                'params_pri',
+                'method',
+            {% endif %}
+
+            // 31, 32
+            '_edit',
+            '_delete',
+
+            // 33
+            {% if connection == 'outgoing' %}
+                '_ping',
+            {% endif %}
+
+            // 38a
+            'data_encoding',
+
+        ]
+    }
+    </script>
+
+{% endblock %}
+
+{% block "content" %}
+<h2 class="zato">{{ transport_label }} {{ connection_label_plural }}</h2>
+
+{% if not zato_clusters %}
+    {% include "zato/no-clusters.html" %}
+{% else %}
+
+    <div id="user-message-div" style='display:none'><pre id="user-message" class="user-message"></pre></div>
+
+{% with full_prompt="Show "|add:transport_label|add:" "|add:connection_label_plural %}
+    {% include "zato/search-form.html" with page_prompt=full_prompt %}
+{% endwith %}
+
+    {% if cluster_id %}
+        <div class='page_prompt' style="clear:left">
+            <a href="javascript:$.fn.zato.http_soap.create('{{ transport_label }} {{ connection_label }}')">Create a new {{ transport_label }} {{ connection_label }}</a>
+        </div>
+
+        <div id="markup">
+            <table id="data-table">
+                <thead>
+                    <tr class='ignore'>
+
+                        <!-- 1, 2 -->
+                        <th>&nbsp;</th> {% comment %} _numbering {% endcomment %}
+                        <th>&nbsp;</th> {% comment %} _selection {% endcomment %}
+
+                        <!-- 3 -->
+                        <th><a href="#">Name</a></th>
+
+                        <!-- 4 -->
+                        <th><a href="#">Active</a></th>
+
+                        <!-- 5 -->
+                        {% if connection == 'outgoing' %}
+                            <th><a href="#">Host</a></th>
+                        {% endif %}
+
+                        <!-- 6 -->
+                        <th><a href="#">URL path</a></th>
+
+                        <!-- 7, 8 -->
+                        {% if connection == 'channel' %}
+                            <th><a href="#">Service</a></th>
+                            <th class='ignore'><a href="#">Cache</a></th>
+                        {% endif %}
+
+                        <!-- 9, 9b -->
+                        <th><a href="#">Security</a></th>
+                        <th><a href="#">Security groups</a></th>
+
+                        <!-- 10, 11 -->
+                        {% if transport == 'soap' %}
+                            <th><a href="#">SOAP action</a></th>
+                            <th><a href="#">SOAP version</a></th>
+                        {% endif %}
+
+                        <!-- 12, 13, 13a -->
+                        {% if connection == 'channel' %}
+                            <th class='ignore'>&nbsp;</th> {% comment %} service {% endcomment %}
+                            <th class='ignore'>&nbsp;</th> {% comment %} content_encoding {% endcomment %}
+                        {% endif %}
+
+                        <!-- 14, 15, 16 -->
+                        <th class='ignore'>&nbsp;</th> {% comment %} id {% endcomment %}
+                        <th class='ignore'>&nbsp;</th> {% comment %} is_active {% endcomment %}
+                        <th class='ignore'>&nbsp;</th> {% comment %} security {% endcomment %}
+
+                        <!-- 17, 18, 19 -->
+                        <th class='ignore'>&nbsp;</th> {% comment %} cache_id {% endcomment %}
+                        <th class='ignore'>&nbsp;</th> {% comment %} cache_type {% endcomment %}
+                        <th class='ignore'>&nbsp;</th> {% comment %} cache_expiry {% endcomment %}
+
+                        <!-- 20, 21 -->
+                        <th class='ignore'>&nbsp;</th> {% comment %} data_format {% endcomment %}
+
+                        <!-- 22, 23a, 23b, 23c -->
+                        <th class='ignore'>&nbsp;</th> {% comment %} timeout {% endcomment %}
+                        <th class='ignore'>&nbsp;</th> {% comment %} use_tls {% endcomment %}
+                        <th class='ignore'>&nbsp;</th> {% comment %} match_slash {% endcomment %}
+                        <th class='ignore'>&nbsp;</th> {% comment %} http_accept {% endcomment %}
+
+                        <!-- 24, 25, 26, 27 -->
+                        {% if connection == 'outgoing' %}
+                            <th class='ignore'>&nbsp;</th> {% comment %} ping_method {% endcomment %}
+                            <th class='ignore'>&nbsp;</th> {% comment %} pool_size {% endcomment %}
+                            <th class='ignore'>&nbsp;</th> {% comment %} serialization_type {% endcomment %}
+                            <th class='ignore'>&nbsp;</th> {% comment %} content_type {% endcomment %}
+                        {% endif %}
+
+                        <!-- 28, 29, 30, 30a -->
+                        {% if connection == 'channel' %}
+                            <th class='ignore'>&nbsp;</th> {% comment %} merge_url_params_req {% endcomment %}
+                            <th class='ignore'>&nbsp;</th> {% comment %} url_params_pri {% endcomment %}
+                            <th class='ignore'>&nbsp;</th> {% comment %} params_pri {% endcomment %}
+                            <th class='ignore'>&nbsp;</th> {% comment %} method {% endcomment %}
+                        {% endif %}
+
+                        <!-- 31, 32 -->
+                        <th>&nbsp;</th> {% comment %} _edit {% endcomment %}
+                        <th>&nbsp;</th> {% comment %} _delete {% endcomment %}
+
+                        <!-- 33 -->
+                        {% if connection == 'outgoing' %}
+                            <th>&nbsp;</th> {% comment %} _ping {% endcomment %}
+                        {% endif %}
+
+                        <!-- 34 -->
+                        {% if connection == 'outgoing' %}
+                          {% if transport == 'soap' %}
+                            <th>&nbsp;</th> {% comment %} _reload_wsdl {% endcomment %}
+                          {% endif %}
+                        {% endif %}
+
+                        <!-- 38a -->
+                        <th class='ignore'>&nbsp;</th>
+                        <th class='ignore'>&nbsp;</th>
+
+                </thead>
+
+                <tbody>
+                {% if items %}
+                {% for item in items %}
+                    <tr class="{% cycle 'odd' 'even' %}" id='tr_{{ item.id }}'>
+
+                        <!-- 1, 2 -->
+                        <td class='numbering'>&nbsp;</td>
+                        <td class="impexp"><input type="checkbox" /></td>
+
+                        <!-- 3 -->
+                        <td>
+                            {{ item.name }}
+                        </td>
+
+                        <!-- 4 -->
+                        <td>{{ item.is_active|yesno:'Yes,No' }}</td>
+
+                        <!-- 5 -->
+                        {% if connection == 'outgoing' %}
+                            <td>
+                            {% if item.host %}
+                                {{ item.host }}
+                            {% else %}
+                                <span class="form_hint">---</span>
+                            {% endif %}
+                            </td>
+                        {% endif %}
+
+                        <!-- 6 -->
+                        <td>{{ item.url_path }}</td>
+
+                        <!-- 7, 8 -->
+                        {% if connection == 'channel' %}
+                            <td><a href="{% url "service-ide" "service" item.service_name %}?cluster={{ cluster_id }}">{{ item.service_name }}</a></td>
+                            <td class='ignore'>
+                            {% if item.cache_id %}
+                                <a href="/zato/cache/{{ item.cache_type }}/?cluster={{ cluster_id }}&amp;highlight={{ item.cache_id }}">{{ item.cache_name }}</a>
+                            {% else %}
+                                <span class="form_hint">---</span>
+                            {% endif %}
+                            </td>
+                        {% endif %}
+
+                        <!-- 9, 9b -->
+                        <td>
+                            {% if item.security_name == "Delegated to RBAC" %}
+                                <span class="form_hint">Delegated to RBAC</span>
+                            {% else %}
+                                {{ item.security_name|safe }}
+                            {% endif %}
+                        <td>
+                            {% if item.security_group_count %}
+                                {{ item.security_group_count }} group{% if item.security_group_count == 0 or item.security_group_count > 1 %}s{% endif %}, {{ item.security_group_member_count }} client{% if item.security_group_member_count == 0 or item.security_group_member_count > 1 %}s{% endif %}
+                            {% else %}
+                            <span class="form_hint">---</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- 10, 11 -->
+                        {% if transport == 'soap' %}
+                            <td>{{ item.soap_action }}</td>
+                            <td>{{ item.soap_version }}</td>
+                        {% endif %}
+
+                        <!-- 12, 13 -->
+                        {% if connection == 'channel' %}
+                            <td class='ignore'>{{ item.service_name }}</td>
+                            <td class='ignore'>{{ item.content_encoding|default:'' }}</td>
+                        {% endif %}
+
+                        <!-- 14, 15, 16 -->
+                        <td class='ignore item_id_{{ item.id }}'>{{ item.id }}</td>
+                        <td class='ignore'>{{ item.is_active }}</td>
+                        <td class='ignore'>{{ item.security_id }}</td>
+
+                        <!-- 17, 18, 19 -->
+                        <td class='ignore'>{{ item.cache_id }}</td>
+                        <td class='ignore'>{{ item.cache_type }}</td>
+                        <td class='ignore'>{{ item.cache_expiry }}</td>
+
+                        <!-- 20 -->
+                        <td class='ignore'>{{ item.data_format }}</td>
+
+                        <!-- 22, 23a, 23b, 23c -->
+                        <td class='ignore'>{{ item.timeout }}</td>
+                        <td class='ignore'>{{ item.validate_tls }}</td>
+                        <td class='ignore'>{{ item.match_slash }}</td>
+                        <td class='ignore'>{{ item.http_accept|default:"" }}</td>
+
+                        <!-- 24, 25, 26, 27 -->
+                        {% if connection == 'outgoing' %}
+                            <td class='ignore'>{{ item.ping_method }}</td>
+                            <td class='ignore'>{{ item.pool_size }}</td>
+                            <td class='ignore'>{{ item.serialization_type }}</td>
+                            <td class='ignore'>{{ item.content_type|default:"" }}</td>
+                        {% endif %}
+
+                        <!-- 28, 29, 30, 30a -->
+                        {% if connection == 'channel' %}
+                            <td class='ignore'>{{ item.merge_url_params_req }}</td>
+                            <td class='ignore'>{{ item.url_params_pri }}</td>
+                            <td class='ignore'>{{ item.params_pri }}</td>
+                            <td class='ignore'>{{ item.method|default:"" }}</td>
+                        {% endif %}
+
+                        <!-- 31, 32 -->
+                        <td><a href="javascript:$.fn.zato.http_soap.edit('{{ item.id }}')">Edit</a></td>
+                        <td><a href="javascript:$.fn.zato.http_soap.delete_('{{ item.id }}')">Delete</a></td>
+
+                        <!-- 33 -->
+                        {% if connection == 'outgoing' %}
+                            <td><a href="javascript:$.fn.zato.data_table.ping('{{ item.id }}')">Ping</a></td>
+                        {% endif %}
+
+                        <!-- 38a -->
+                        <td class='ignore'>{{ item.data_encoding|default:"" }}</td>
+
+                    </tr>
+                {% endfor %}
+                {% else %}
+                    <tr class='ignore'>
+                        <td colspan='{{ colspan }}'>No results</td>
+                    </tr>
+                {% endif %}
+
+                </tbody>
+            </table>
+
+        </div>
+
+{% include "zato/paginate/action-panel.html" %}
+
+        <div id="create-div" class='data-popup ignore'>
+            <div class="bd">
+                <form novalidate action="{% url "http-soap-create" %}?connection={{ connection }}&amp;transport={{ transport }}" method="post" id="create-form">
+                    <table class="form-data">
+                        <tr>
+                            <td style="vertical-align:middle;width:19%">Name</td>
+                            <td>{{ create_form.name }}</td>
+                        </tr>
+
+                        <tr>
+                            <td></td>
+                            <td>
+                                <label>
+                                    Active
+                                    {{ create_form.is_active }}
+                                </label>
+                                {% if transport == 'plain_http' %}
+                                    |
+                                    <label>
+                                        Data format
+                                        {{ create_form.data_format }}
+                                    </label>
+                                {% endif %}
+                            </td>
+                        </tr>
+
+                        {% if connection == 'outgoing' %}
+                        <tr>
+                            <td style="vertical-align:middle">Host</td>
+                            <td>{{ create_form.host }}</td>
+                        </tr>
+                        {% endif %}
+
+                        <tr>
+                            <td style="vertical-align:middle">URL path</td>
+                            <td>
+                                {{ create_form.url_path }}
+                            </td>
+                        </tr>
+
+                        {% if connection == 'channel' %}
+                        <tr>
+                            <td style="vertical-align:middle">Service</td>
+                            <td>{{ create_form.service }}</td>
+                        </tr>
+                        {% endif %}
+
+                        <tr>
+                            <td style="vertical-align:middle">Security</td>
+                            <td>
+                                {{ create_form.security }}
+                            </td>
+                        </tr>
+
+                        {% if connection == 'channel' %}
+                        <tr>
+                            <td style="vertical-align:middle">
+                                Security groups
+                            </td>
+                            <td>
+                            <a href="javascript:$.fn.zato.toggle_visibility('.api-client-groups-options-block')">Toggle options</a>
+                            </td>
+                        </tr>
+                        {% endif %}
+
+                        <tr class="api-client-groups-options-block hidden">
+                            <td class="to-ignore"></td>
+                            <td>
+                                <div class="multi-select-div" id="multi-select-div-create">
+                                </div>
+                            </td>
+                        </tr>
+
+                        {% if transport == 'soap' %}
+                        <tr>
+                            <td style="vertical-align:middle">SOAP action</td>
+                            <td>{{ create_form.soap_action }}</td>
+                        </tr>
+
+                        <tr>
+                            <td style="vertical-align:middle">SOAP version</td>
+                            <td>{{ create_form.soap_version }}</td>
+                        </tr>
+                        {% endif %}
+
+                        {% if connection == 'outgoing' %}
+                        <tr>
+                            <td style="vertical-align:middle">Ping method
+                            <br/>
+                            <span class="form_hint">default: {{ default_http_ping_method }} </span>
+                            </td>
+                            <td>{{ create_form.ping_method }}</td>
+                        </tr>
+
+                        <tr>
+                            <td style="vertical-align:middle">Pool size
+                            <br/>
+                            <span class="form_hint">default: {{ default_http_pool_size }} </span>
+                            </td>
+                            <td>{{ create_form.pool_size }}</td>
+                        </tr>
+
+                        <tr>
+                            <td style="vertical-align:middle">Timeout (s)
+                            <br/>
+                            <span class="form_hint">default: {{ default_http_timeout }} </span>
+                            </td>
+                            <td>{{ create_form.timeout }}</td>
+                        </tr>
+
+                        <tr>
+                            <td style="vertical-align:middle">Content type</td>
+                            <td>{{ create_form.content_type }}</td>
+                        </tr>
+
+                        {% if transport == 'soap' %}
+                            <tr>
+                                <td style="vertical-align:middle">Serialization type
+                                </td>
+                                <td>{{ create_form.serialization_type }}</td>
+                            </tr>
+                        {% endif %}
+
+                        {% endif %}
+
+                        {% if False %}
+                        <tr>
+                            <td style="vertical-align:middle">
+                            Cache
+                            </td>
+                            <td>
+                            <a href="javascript:$.fn.zato.toggle_visibility('.cache-options-block')">Toggle options</a>
+                            </td>
+                        </tr>
+                        <tr class="cache-options-block hidden">
+                            <td class="to-ignore"></td>
+                            <td>{{ create_form.cache_id }}
+                            |
+                            Expiry
+                            {{ create_form.cache_expiry }}
+                            <span class="form_hint">(in minutes, 0=unlimited)</span>
+                            </td>
+                        </tr>
+
+                        {% endif %}
+
+                        {% if connection == 'channel' %}
+                        <tr>
+                            <td style="vertical-align:middle">
+                            More options
+                            </td>
+                            <td>
+                            <a href="javascript:$.fn.zato.toggle_visibility('.more-options-block')">Toggle options</a>
+                            </td>
+                        </tr>
+                        {% endif %}
+
+                        {% if connection == 'channel' %}
+                        <tr class="more-options-block hidden">
+                            <td style="vertical-align:middle">URL params</td>
+                            <td>
+                                {{ create_form.url_params_pri }}
+                                |
+                                <label>
+                                Merge to request
+                                {{ create_form.merge_url_params_req }}
+                                </label>
+                            </td>
+                        </tr>
+
+                        <tr class="more-options-block hidden">
+                            <td style="vertical-align:middle">Params priority</td>
+                            <td>
+                                {{ create_form.params_pri }}
+                                {% if connection == 'channel' %}
+                                    |
+                                    <label>Match slash
+                                    {{ create_form.match_slash }}
+                                    </label>
+                                {% endif %}
+                            </td>
+                        </tr>
+
+                        <tr class="more-options-block hidden">
+                            <td style="vertical-align:middle">Method</td>
+                            <td>
+                                {{ create_form.method }}
+                                |
+                                <label>
+                                    Encoding
+                                    {{ create_form.content_encoding }}
+                                </label>
+                            </td>
+                        </tr>
+
+                        <tr class="more-options-block hidden">
+                            <td style="vertical-align:middle">Accept header</td>
+                            <td>
+                                {{ create_form.http_accept }}
+                            </td>
+                        </tr>
+                        {% endif %}
+
+                        {% if connection == 'outgoing' %}
+                        <tr>
+                            <td style="vertical-align:middle">Validate SSL/TLS</td>
+                            <td>{{ create_form.validate_tls }}</td>
+                        </tr>
+                        {% endif %}
+
+                        <tr>
+                            <td colspan="2" style="text-align:right">
+                                <input type="submit" value="OK" />
+                                <button type='button' onclick='javascript:$.fn.zato.data_table.close(this)'>Cancel</button>
+                            </td>
+
+                        </tr>
+                    </table>
+                    <input type="hidden" id="cluster_id" name="cluster_id" value="{{ cluster_id }}" />
+                    <input type="hidden" id="id_cache_type" name="cache_type" />
+                    <input type="hidden" name="connection" value="{{ connection }}" />
+                    <input type="hidden" name="transport" value="{{ transport }}" />
+
+                    {{ create_form.data_encoding }}
+
+                </form>
+            </div>
+        </div>
+
+        <div id="edit-div" class='data-popup ignore'>
+            <div class="bd">
+                <form novalidate action="{% url "http-soap-edit" %}?connection={{ connection }}&amp;transport={{ transport }}" method="post" id="edit-form">
+                    <table class="form-data">
+                        <tr>
+                            <td style="vertical-align:middle;width:20%">Name</td>
+                            <td>{{ edit_form.name }}</td>
+                        </tr>
+
+                        <tr>
+                            <td></td>
+                            <td>
+                                <label>
+                                    Active
+                                    {{ edit_form.is_active }}
+                                </label>
+                                |
+                                <label>
+                                    Data format
+                                    {{ edit_form.data_format }}
+                                </label>
+                            </td>
+                        </tr>
+
+                        {% if connection == 'outgoing' %}
+                        <tr>
+                            <td style="vertical-align:middle">Host</td>
+                            <td>{{ edit_form.host }}</td>
+                        </tr>
+                        {% endif %}
+
+                        <tr>
+                            <td style="vertical-align:middle">URL path</td>
+                            <td>
+                                {{ edit_form.url_path }}
+                            </td>
+                        </tr>
+
+                        {% if connection == 'channel' %}
+                        <tr>
+                            <td style="vertical-align:middle">Service</td>
+                            <td>{{ edit_form.service }}</td>
+                        </tr>
+                        {% endif %}
+
+                        <tr>
+                            <td style="vertical-align:middle">Security<br/>definition</td>
+                            <td>
+                                {{ edit_form.security }}
+                            </td>
+                        </tr>
+
+                        {% if connection == 'channel' %}
+                        <tr>
+                            <td style="vertical-align:middle">
+                                Security groups
+                            </td>
+                            <td>
+                            <a href="javascript:$.fn.zato.toggle_visibility('.api-client-groups-options-block')">Toggle options</a>
+                            </td>
+                        </tr>
+                        {% endif %}
+                        <tr class="api-client-groups-options-block hidden">
+                            <td class="to-ignore"></td>
+                            <td>
+                                <div class="multi-select-div" id="multi-select-div-edit">
+                                </div>
+                            </td>
+                        </tr>
+
+                        {% if transport == 'soap' %}
+                        <tr>
+                            <td style="vertical-align:middle">SOAP action</td>
+                            <td>{{ edit_form.soap_action }}</td>
+                        </tr>
+
+                        <tr>
+                            <td style="vertical-align:middle">SOAP version</td>
+                            <td>{{ edit_form.soap_version }}</td>
+                        </tr>
+                        {% endif %}
+
+                        {% if connection == 'outgoing' %}
+                        <tr>
+                            <td style="vertical-align:middle">Ping method
+                            <br/>
+                            <span class="form_hint">default: {{ default_http_ping_method }} </span>
+                            </td>
+                            <td>{{ edit_form.ping_method }}</td>
+                        </tr>
+
+                        <tr>
+                            <td style="vertical-align:middle">Pool size
+                            <br/>
+                            <span class="form_hint">default: {{ default_http_pool_size }} </span>
+                            </td>
+                            <td>{{ edit_form.pool_size }}</td>
+                        </tr>
+
+                        <tr>
+                            <td style="vertical-align:middle">Timeout (s)
+                            <br/>
+                            <span class="form_hint">default: {{ default_http_timeout }} </span>
+                            </td>
+                            <td>{{ edit_form.timeout }}</td>
+                        </tr>
+
+                        <tr>
+                            <td style="vertical-align:middle">Content type</td>
+                            <td>{{ edit_form.content_type }}</td>
+                        </tr>
+
+                        {% if transport == 'soap' %}
+                            <tr>
+                                <td style="vertical-align:middle">Serialization type
+                                </td>
+                                <td>{{ edit_form.serialization_type }}</td>
+                            </tr>
+                        {% endif %}
+
+                        {% endif %}
+
+                        {% if connection == 'outgoing' %}
+                        <tr>
+                            <td style="vertical-align:middle">Validate SSL/TLS</td>
+                            <td>{{ edit_form.validate_tls }}</td>
+                        </tr>
+                        {% endif %}
+
+                        {% if connection == 'channel' %}
+                        <tr>
+                            <td style="vertical-align:middle">
+                            More options
+                            </td>
+                            <td>
+                            <a href="javascript:$.fn.zato.toggle_visibility('.more-options-block')">Toggle options</a>
+                            </td>
+                        </tr>
+                        {% endif %}
+
+                        {% if connection == 'channel' %}
+                        <tr class="more-options-block hidden">
+                            <td style="vertical-align:middle">URL params</td>
+                            <td>
+                                {{ edit_form.url_params_pri }}
+                                |
+                                <label>
+                                Merge to request
+                                {{ edit_form.merge_url_params_req }}
+                                </label>
+                            </td>
+                        </tr>
+
+                        <tr class="more-options-block hidden">
+                            <td style="vertical-align:middle">Params priority</td>
+                            <td>
+                                {{ edit_form.params_pri }}
+                                {% if connection == 'channel' %}
+                                    |
+                                    <label>Match slash
+                                    {{ edit_form.match_slash }}
+                                    </label>
+                                {% endif %}
+                            </td>
+                        </tr>
+
+                        <tr class="more-options-block hidden">
+                            <td style="vertical-align:middle">Method</td>
+                            <td>
+                                {{ edit_form.method }}
+                                |
+                                <label>
+                                    Encoding
+                                    {{ edit_form.content_encoding }}
+                                </label>
+                            </td>
+                        </tr>
+
+                        <tr class="more-options-block hidden">
+                            <td style="vertical-align:middle">Accept header</td>
+                            <td>
+                                {{ edit_form.http_accept }}
+                            </td>
+                        </tr>
+                        {% endif %}
+
+                        <tr>
+                            <td colspan="2" style="text-align:right">
+                                <input type="submit" value="OK" />
+                                <button type='button' onclick='javascript:$.fn.zato.data_table.close(this)'>Cancel</button>
+                            </td>
+                        </tr>
+                    </table>
+                    <input type="hidden" id="id_edit-cluster_id" name="cluster_id" value="{{ cluster_id }}" />
+                    <input type="hidden" id="id_edit-id" name="id" />
+                    <input type="hidden" id="id_edit-cache_type" name="edit-cache_type" />
+                    <input type="hidden" name="connection" value="{{ connection }}" />
+                    <input type="hidden" name="transport" value="{{ transport }}" />
+
+                    {{ edit_form.data_encoding }}
+
+                </form>
+            </div>
+        </div>
+
+    {% endif %}
+
+{% endif %}{% comment %}not zato_clusters{% endcomment %}
+
+{% endblock %}

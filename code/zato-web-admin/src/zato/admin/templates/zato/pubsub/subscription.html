@@ -1,0 +1,458 @@
+{% extends "zato/index.html" %}
+{% load extras %}
+
+{% block html_title %}Pub/sub subscriptions{% endblock %}
+
+{% block "extra_css" %}
+    <link rel="stylesheet" type="text/css" href="/static/css/jquery.alerts.css">
+    <link rel="stylesheet" type="text/css" href="/static/css/multi-select.css">
+    <style>
+
+        .ui-dialog-titlebar {
+            margin-bottom: 0px !important;
+        }
+
+        /* Smooth transitions for security definitions loading */
+        .loading-spinner {
+            opacity: 0;
+            transition: opacity 0.05s ease-in;
+            display: inline-block;
+            height: 20px;
+            line-height: 20px;
+            vertical-align: top;
+        }
+
+        .loading-spinner.show {
+            opacity: 1;
+        }
+
+        .security-select {
+            transition: opacity 0.05s ease-out;
+        }
+
+        .security-select.hide {
+            opacity: 0;
+        }
+
+        /* Use flexbox for delivery type row alignment */
+        tr:has(#id_delivery_type),
+        tr:has(#id_edit-delivery_type) {
+            transform: translateY(-5px) !important;
+        }
+
+        tr:has(#id_delivery_type) td:last-child,
+        tr:has(#id_edit-delivery_type) td:last-child {
+            display: flex !important;
+            align-items: center !important;
+            gap: 0px !important;
+        }
+
+        #id_delivery_type, #id_edit-delivery_type,
+        #rest-endpoint-create, #rest-endpoint-edit {
+            flex-shrink: 0 !important;
+        }
+
+
+
+        /* Security definition selects should be visible */
+        #id_sec_base_id, #id_edit-sec_base_id {
+            display: block;
+        }
+
+        /* Multi-select message styling */
+        .multi-select-message {
+            font-style: italic;
+            color: #666;
+        }
+
+        /* No security definitions messages consistent with dropdown height */
+        .no-security-definitions-message {
+            display: inline-block;
+            line-height: 34px;
+            vertical-align: middle;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Fixed height for security definition table cells to prevent layout shifts */
+        tr:has(#id_sec_base_id) td,
+        tr:has(#id_edit-sec_base_id) td {
+            height: 32px !important;
+            vertical-align: middle;
+        }
+
+        /* Set width for security select fields */
+        #id_sec_base_id, #id_edit-sec_base_id {
+            width: 50% !important;
+        }
+
+        #rest-endpoint-create,
+        #rest-endpoint-edit,
+        #push-service-create,
+        #push-service-edit {
+            width: 100% !important;
+        }
+
+        #id_rest_push_endpoint_id_chosen.chosen-container,
+        #id_edit_rest_push_endpoint_id_chosen.chosen-container {
+            min-width: 98.8% !important;
+        }
+
+        #id_push_service_name_chosen.chosen-container,
+        #id_edit_push_service_name_chosen.chosen-container {
+            width: 165.48% !important;
+            right: 2.54px;
+        }
+
+        /* Chosen multi-select tag styling */
+        .chosen-container-multi .chosen-choices li.search-choice {
+            background: linear-gradient(135deg, #0936d5 0%, #0a2bb8 100%) !important;
+            border: 1px solid #072a9e !important;
+            color: white !important;
+            border-radius: 4px !important;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
+        }
+
+        .chosen-container-multi .chosen-choices li.search-choice span {
+            color: white !important;
+        }
+
+        /* Close button styling - lighter than the tag */
+        .chosen-container-multi .chosen-choices li.search-choice .search-choice-close {
+            border-radius: 50% !important;
+            width: 16px !important;
+            height: 16px !important;
+            right: -1px !important;
+            top: -2px !important;
+            opacity: 1 !important;
+            color: #fff !important;
+            background: none !important;
+            font-size: 14px !important;
+            line-height: 16px !important;
+            text-align: center !important;
+            text-decoration: none;
+        }
+
+        .chosen-container-multi .chosen-choices li.search-choice .search-choice-close:before {
+            color: #fff !important;
+            content: '×' !important;
+            display: block !important;
+        }
+
+        .chosen-container-multi .chosen-choices li.search-choice .search-choice-close:hover {
+            opacity: 1 !important;
+            color: #f44336 !important;
+            text-decoration: none;
+        }
+
+        .chosen-container-multi .chosen-choices li.search-choice .search-choice-close:hover:before {
+            color: #f44336 !important;
+        }
+
+        /* Stylish input field */
+        .chosen-container-multi .chosen-choices li.search-field input[type="text"] {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%) !important;
+            border: 2px solid transparent !important;
+            border-radius: 8px !important;
+            padding: 6px 12px !important;
+            transition: all 0.04s cubic-bezier(0.4, 0, 0.2, 1) !important;
+            backdrop-filter: blur(10px) !important;
+            box-shadow: inset 0 1px 3px rgba(82, 73, 73, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
+            outline: none !important;
+            font-size:0.74rem !important;
+        }
+
+        .chosen-container-multi .chosen-choices li.search-field input[type="text"]:focus {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.08) 100%) !important;
+            border: 2px solid rgba(255, 255, 255, 0.3) !important;
+            box-shadow: inset 0 1px 3px rgba(82, 73, 73, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
+            font-size:0.64rem !important;
+        }
+
+        .chosen-container-multi .chosen-choices li.search-field input[type="text"]::placeholder {
+            font-style: italic !important;
+        }
+
+        /* Prevent hover background on multi-select table */
+        #multi-select-table tr:hover {
+            background: transparent !important;
+        }
+
+        #multi-select-table td {
+            background: transparent !important;
+        }
+
+        #multi-select-table td:hover {
+            background: transparent !important;
+        }
+
+    </style>
+{% endblock %}
+
+{% block "extra_js" %}
+
+    {% comment %} jQuery {% endcomment %}
+    <script nonce="{{ CSP_NONCE }}" type="text/javascript" src="/static/jquery/jquery.tablesorter.min.js"></script>
+    <script nonce="{{ CSP_NONCE }}" type="text/javascript" src="/static/jquery/jquery.cookie.js"></script>
+    <script nonce="{{ CSP_NONCE }}" type="text/javascript" src="/static/jquery/jquery.alerts.min.js"></script>
+
+    {% comment %} Common JS {% endcomment %}
+    <script nonce="{{ CSP_NONCE }}" type="text/javascript" src="/static/js/common.js"></script>
+
+    {% comment %} Security Common JS {% endcomment %}
+    <script nonce="{{ CSP_NONCE }}" type="text/javascript" src="/static/js/security/common-security.js"></script>
+
+    {% comment %} PubSub Common Topics JS {% endcomment %}
+    <script nonce="{{ CSP_NONCE }}" type="text/javascript" src="/static/js/pubsub/common-topics.js"></script>
+
+
+
+    {% comment %} PubSub Subscription {% endcomment %}
+    <script nonce="{{ CSP_NONCE }}" type="text/javascript" src="/static/js/pubsub/subscription.js"></script>
+
+
+    <script nonce="{{ CSP_NONCE }}">
+    $.fn.zato.data_table.get_columns = function() {
+        return [
+
+            '_numbering',
+            '_selection',
+            'sec_name',
+
+            'sub_key',
+            '_is_active',
+            '_delivery_type',
+
+            'topic_link_list',
+            '_edit',
+            '_delete',
+
+            'id',
+            'is_active',
+            'delivery_type',
+
+            'sec_base_id',
+            'push_type',
+            'rest_push_endpoint_id',
+
+            'rest_push_endpoint_name',
+            'push_service_name',
+            'topic_name_list',
+        ]
+    }
+    </script>
+
+{% endblock %}
+
+{% block "content" %}
+<h2 class="zato">Pub/sub subscriptions</h2>
+
+{% if not zato_clusters %}
+    {% include "zato/no-clusters.html" %}
+{% else %}
+
+    <div id="user-message-div" style='display:none'><pre id="user-message" class="user-message"></pre></div>
+
+{% include "zato/search-form.html" with page_prompt="Search"%}
+
+
+    {% if cluster_id %}
+
+        <div class='page_prompt' style="clear:left">
+            <a href="javascript:$.fn.zato.pubsub.subscription.create()">Create a new pub/sub subscription</a>
+        </div>
+
+        <div id="markup">
+            <table id="data-table">
+                <thead>
+                    <tr class='ignore'>
+
+                        <th>&nbsp;</th>
+                        <th>&nbsp;</th>
+                        <th style="width:1%; white-space:nowrap;">Security definition</th>
+
+                        <th style="width:1%; white-space:nowrap;">Sub key</th>
+                        <th><a href="#">Active</a></th>
+                        <th>Delivery type</th>
+
+                        <th>Topics</th>
+                        <th>Edit</th>
+                        <th>Delete</th>
+
+                        <th class='ignore'>&nbsp;</th>
+                        <th class='ignore'>&nbsp;</th>
+                        <th class='ignore'>&nbsp;</th>
+
+                        <th class='ignore'>&nbsp;</th>
+                        <th class='ignore'>&nbsp;</th>
+                        <th class='ignore'>&nbsp;</th>
+
+                        <th class='ignore'>&nbsp;</th>
+                        <th class='ignore'>&nbsp;</th>
+                        <th class='ignore'>&nbsp;</th>
+
+                </thead>
+
+                <tbody>
+                {% if items %}
+                {% for item in items %}
+                    <tr class="{% cycle 'odd' 'even' %}" id='tr_{{ item.id }}'>
+
+                        <td class='numbering'>&nbsp;</td>
+                        <td class='impexp'><input type='checkbox' /></td>
+                        <td><a href="/zato/security/basic-auth/?cluster={{ cluster_id }}&amp;query={{ item.sec_name|urlencode }}">{{ item.sec_name }}</a></td>
+
+                        <td>{{ item.sub_key }}</td>
+                        <td style="text-align:center">{{ item.is_active|yesno:"Yes,No" }}</td>
+                        <td>
+                            {% if item.delivery_type == 'pull' %}
+                                Pull
+                            {% elif item.delivery_type == 'push' and item.push_type == 'rest' %}
+                                Push <a href="/zato/http-soap/?cluster={{ cluster_id }}&amp;query={{ item.rest_push_endpoint_name }}&amp;connection=outgoing&amp;transport=plain_http">{{ item.rest_push_endpoint_name }}</a>
+                            {% elif item.delivery_type == 'push' and item.push_type == 'service' %}
+                                Push <a href="/zato/service/?cluster={{ cluster_id }}&amp;query={{ item.push_service_name }}">{{ item.push_service_name }}</a>
+                            {% else %}
+                                Push
+                            {% endif %}
+                        </td>
+
+                        <td>{{ item.topic_link_list|safe }}</td>
+                        <td><a href="javascript:$.fn.zato.pubsub.subscription.edit('{{ item.id }}')">Edit</a></td>
+                        <td><a href="javascript:$.fn.zato.pubsub.subscription.delete_('{{ item.id }}')">Delete</a></td>
+
+                        <td class='ignore item_id_{{ item.id }}'>{{ item.id }}</td>
+                        <td class='ignore'>{{ item.is_active }}</td>
+                        <td class='ignore'>{{ item.delivery_type }}</td>
+
+                        <td class='ignore'>{{ item.sec_base_id }}</td>
+                        <td class='ignore'>{{ item.push_type }}</td>
+                        <td class='ignore'>{{ item.rest_push_endpoint_id }}</td>
+
+                        <td class='ignore'>{{ item.rest_push_endpoint_name }}</td>
+                        <td class='ignore'>{{ item.push_service_name }}</td>
+                        <td class='ignore'>{{ item.topic_name_list }}</td>
+                    </tr>
+                {% endfor %}
+                {% else %}
+                    <tr class='ignore'>
+                        <td colspan='99'>No results</td>
+                    </tr>
+                {% endif %}
+
+                </tbody>
+            </table>
+        </div>
+
+{% include "zato/paginate/action-panel.html" %}
+
+        <div id="create-div" class='data-popup ignore'>
+            <div class="bd">
+                <form novalidate action="{% url "pubsub-subscription-create" %}" method="post" id="create-form">
+                    <table class="form-data">
+                        <tr>
+                            <td style="vertical-align:middle; width:14%"><label for="id_is_active">Active</label></td>
+                            <td>{{ create_form.is_active }}</td>
+                        </tr>
+                        <tr style="height:20px; max-height:20px; line-height:20px;">
+                            <td style="vertical-align:middle; height:20px; max-height:20px; overflow:hidden; width:150px; line-height:20px;"><label for="id_sec_base_id">Security definition</label></td>
+                            <td style="height:20px; max-height:20px; overflow:hidden; width:400px; line-height:20px;">{{ create_form.sec_base_id }}</td>
+                        </tr>
+
+                        <tr>
+                            <td style="vertical-align:middle">
+                                Topics
+                            </td>
+                            <td id="td_topic_list" style="min-height: 25px; height: 25px; vertical-align: middle;">
+                                <div class="multi-select-div" id="multi-select-div"><table id="multi-select-table" class="multi-select-table"><tr><td colspan="2"><span style="font-style: italic; color: #666;">Select a security definition to list available topics</span></td></tr></table></div>
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <td style="vertical-align:baseline; width:150px; height:40px;"><label for="id_delivery_type">Delivery type</label></td>
+                            <td style="vertical-align:baseline; width:400px; height:40px;">
+                                {{ create_form.delivery_type }}
+                                &nbsp;
+                                <span id="push-type-create" style="display:none;">
+                                    {{ create_form.push_type }}
+                                </span>
+                                &nbsp;
+                                <span id="rest-endpoint-create" style="width:50%; display:none;">
+                                    {{ create_form.rest_push_endpoint_id }}
+                                </span>
+                                &nbsp;
+                                <span id="push-service-create" style="width:50%; display:none;">
+                                    {{ create_form.push_service_name }}
+                                </span>
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <td colspan="2" style="text-align:right">
+                                <input type="submit" value="OK" />
+                                <button type='button' onclick='javascript:$.fn.zato.data_table.close(this)'>Cancel</button>
+                            </td>
+                        </tr>
+                    </table>
+                    <input type="hidden" id="cluster_id" name="cluster_id" value="{{ cluster_id }}" />
+                </form>
+            </div>
+        </div>
+
+        <div id="edit-div" class='data-popup ignore'>
+            <div class="bd">
+                <form novalidate action="{% url "pubsub-subscription-edit" %}" method="post" id="edit-form">
+                    <table class="form-data">
+                        <tr>
+                            <td style="vertical-align:middle; width:14%"><label for="id_edit-is_active">Active</label></td>
+                            <td>{{ edit_form.is_active }}</td>
+                        </tr>
+                        <tr style="height:20px; max-height:20px; line-height:20px;">
+                            <td style="vertical-align:middle; height:20px; max-height:20px; overflow:hidden; width:150px; line-height:20px;"><label for="id_edit-sec_base_id">Security definition</label></td>
+                            <td style="height:30px; max-height:20px; overflow:hidden; width:400px; line-height:20px;">{{ edit_form.sec_base_id }}<div id="edit-sec-def-container"></div></td>
+                        </tr>
+
+                        <tr>
+                            <td style="vertical-align:middle">
+                                Topics
+                            </td>
+                            <td id="id_edit-td_topic_list" style="min-height: 25px; height: 25px; vertical-align: middle;">
+                                <div class="multi-select-div" id="id_edit-multi-select-div"><table id="id_edit-multi-select-table" class="multi-select-table"><tr><td colspan="2"><span style="font-style: italic; color: #666;">Select a security definition to list available topics</span></td></tr></table></div>
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <td style="vertical-align:baseline; width:150px; height:40px;"><label for="id_delivery_type">Delivery type</label></td>
+                            <td style="vertical-align:baseline; width:400px; height:40px;">
+                                {{ edit_form.delivery_type }}
+                                &nbsp;
+                                <span id="push-type-edit" style="display:none;">
+                                    {{ edit_form.push_type }}
+                                </span>
+                                &nbsp;
+                                <span id="rest-endpoint-edit" style="width:50%; display:none;">
+                                    {{ edit_form.rest_push_endpoint_id }}
+                                </span>
+                                &nbsp;
+                                <span id="push-service-edit" style="width:50%; display:none;">
+                                    {{ edit_form.push_service_name }}
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="2" style="text-align:right">
+                                <input type="submit" value="OK" />
+                                <button type='button' onclick='javascript:$.fn.zato.data_table.close(this)'>Cancel</button>
+                            </td>
+                        </tr>
+                    </table>
+                    <input type="hidden" id="id_edit-cluster_id" name="cluster_id" value="{{ cluster_id }}" />
+                    <input type="hidden" id="id_edit-sub_key" name="edit-sub_key" />
+                </form>
+            </div>
+        </div>
+
+    {% endif %} {% comment %}cluster_id{% endcomment %}
+
+{% endif %}{% comment %}not zato_clusters{% endcomment %}
+
+{% endblock %}
